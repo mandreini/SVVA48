@@ -5,22 +5,26 @@ import matplotlib.pyplot as plt
 import numpy
 import parameters
 
-step_size = 0.001
+step_size = 1.
 z_disc = numpy.arange(0, parameters.L, step_size)
 
 def getValAtLoc(force, z_loc):
-    # used to check the value of the force at a given location
-    # determine which index of z_disc is closest to given z_loc
+    """
+    Determine the internal (given) at a location (given)
+    :param force: numpy.ndarray(force)
+    :param z_loc: float(z)
+    :return: float(force)
+    """
     z_ind = numpy.where(min(abs(z_disc-z_loc)) == abs(z_disc-z_loc))
     return force[z_ind]
 
 
-def normalInternal():
-    return 0
-
-
 def shearyInternal():
-    # determines the internal shear force along the fuselage in the y-direction
+    """
+    This method determines the shear in y along the beam in z. Takes into account the distributed load (q) and both
+    reaction forces (Sy1, Sy2) due to the landing gear
+    :return: numpy.ndarray(sheary)
+    """
     sheary = - parameters.q * z_disc
     sheary = sheary + numpy.where(z_disc>parameters.Lf02, parameters.Sy2, 0.)
     sheary = sheary + numpy.where(z_disc>parameters.Lf01, parameters.Sy1, 0.)
@@ -29,11 +33,17 @@ def shearyInternal():
     assert abs(sheary[-1] - parameters.q * step_size) < 0.001, 'Internal shear_y at nose of fuselage is not 0.'
 
     return sheary
-    # L-Lf1-Lf2 is about 33.8 m, which is index 33801. shear[33800] is similar to shear[33801] but shear[33802] is much different
 
 
 def shearyInternal_alt(forces, locations):
-    # the high-brow thing i wanted to try to make
+    """
+    This is a more general way to determine the shear in y along the fuselage in z. forces is a list of the applied
+    forces, point or distributed. locations is a list of the locations of said forces; distributed forces are to be
+    given as a tuple/list of [start, end] locations. Can be used for any beam under shear, really.
+    :param forces: iterable(force)
+    :param locations: iterable(start[, stop] location)
+    :return: numpy.ndarray(sheary)
+    """
     sheary_val = numpy.array([0.] * len(z_disc))
     for ind, f in enumerate(forces):
         if isinstance(locations[ind], tuple) or isinstance(locations[ind], list):
@@ -51,18 +61,24 @@ def shearyInternal_alt(forces, locations):
 
 
 def shearxInternal():
-    # determines the internal shear force along the fuselage in the x-direction
+    """
+    Same thing as shearxInternal, but for shear in x along fuselage in z. Is not (currently) complete due to missing
+    reaction forces.
+    :return: numpy.ndarray(shearx)
+    """
     shearx = parameters.Sx
     shearx = shearx + numpy.where(z_disc>parameters.Lf02, parameters.Sx2, 0)
     shearx = shearx + numpy.where(z_disc>parameters.Lf01, parameters.Sx1, 0)
 
-    # not sure how to check that the shear calculations work out, as the shear starts at non-zero.
-    # also, I don't know how Sx1, Sx2 are to be determined. Will need to talk to Phillip
     return shearx
 
 
 def momentxInternal():
-    # determines the internal moment in x along the fuselage
+    """
+    This method will determine the internal moment force x along the beam in z. Takes into account the distributed load
+    and the 2 reaction forces.
+    :return: numpy.ndarray(Mx)
+    """
     momentx = - parameters.q * z_disc * z_disc/2
     momentx = momentx + numpy.where(z_disc>parameters.Lf02, parameters.Sy2 * (z_disc - parameters.Lf02), 0.)
     momentx = momentx + numpy.where(z_disc>parameters.Lf01, parameters.Sy1 * (z_disc - parameters.Lf01), 0.)
@@ -74,7 +90,12 @@ def momentxInternal():
 
 
 def momentxInternal_alt(forces, locations):
-    # more pretentious stuff
+    """
+    Same thing as shearyInternal_alt, but for momentxInternal: a general method to determine the internal moment.
+    :param forces: iterable(forces)
+    :param locations: locations: iterable(start[, stop] location)
+    :return:
+    """
     momentx_val = numpy.array([0.] * len(z_disc))
     for ind, f in enumerate(forces):
         if isinstance(locations[ind], tuple) or isinstance(locations[ind], list):
@@ -91,8 +112,9 @@ def momentxInternal_alt(forces, locations):
 
 
 def momentzInternal():
-    # determines the internal moment in z along the fuselage
-    momentz = parameters.M3 + parameters.Sx*parameters.R  # this is taken from equation 2.4; momentz = Mz,A-Mz,B
+    # Determines moment in z, but (currently) incomplete due to not having all reaction forces. Currently is a constant.
+    momentz = z_disc * 0.
+    momentz += parameters.M3 + parameters.Sx*parameters.R  # this is taken from equation 2.4; momentz = Mz,A - Mz,B
     return momentz
 
 

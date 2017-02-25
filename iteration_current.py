@@ -1,10 +1,11 @@
 # header stuff
-
+import internalForces
 import parameters
 import numpy
 import pygame
 import beamProperties
 import matplotlib.pyplot as plt
+
 
 def boom_creator(n_booms,n_floor_booms):
     fuselage_booms = []
@@ -34,7 +35,7 @@ def boom_creator(n_booms,n_floor_booms):
 
 
 def bending_stress_precise(Mx,My,x,y,Ixx,Iyy,Ixy):
-    return (Ixx*My-Ixy*Mx)/(Ixx*Iyy-Ixy**2)*x+(Iyy*Mx-Ixy*My)/(Ixx*Iyy-Ixy**2)*y
+    return (Ixx*My-Ixy*Mx)*x/(Ixx*Iyy-Ixy**2)+(Iyy*Mx-Ixy*My)*y/(Ixx*Iyy-Ixy**2)
 
 def neutral_axis_orientation(Mx,My,Ixx,Iyy,Ixy):
     return numpy.atan((Ixx*My-Ixy*Mx)/(Iyy*Mx-Ixy*My))*57.3
@@ -42,10 +43,11 @@ def neutral_axis_orientation(Mx,My,Ixx,Iyy,Ixy):
 def bending_stress(Moment,y,I):
     return Moment*y/I
 
-def normal_stress_calculation(boom_array,Ixx,Iyy,Mx,My):
+def normal_stress_calculation(boom_array,Ixx,Iyy,Ixy,Mx,My):
     stresses = []
+   # na_orientation = neutral_axis_orientation(Mx,My,Ixx,Ixy,Ixy)
     for n in range(len(boom_array)):
-        sigma = + bending_stress(Mx,boom_array[n][2]-centroid[1],Iyy) + bending_stress(My,boom_array[n][1]-centroid[0],Ixx)
+        sigma = bending_stress_precise(Mx,My,boom_array[n][1],boom_array[n][2],Ixx,Iyy,Ixy)
         sigma += 0.0  # adding flat normal stress as assuming that stress will never be 0 at any point
         stresses.append([sigma,boom_array[n][1],boom_array[n][2]])
 
@@ -118,37 +120,143 @@ def divide_into_multicell(all_booms):
 
     return numpy.array(cell_I),numpy.array(cell_II)
 
+def create_force_matrix():
+    shear_x = numpy.array(internalForces.shearxInternal())
+    shear_y = numpy.array(internalForces.shearyInternal())
+    moment_x = numpy.array(internalForces.momentxInternal())
+    moment_z = numpy.array(internalForces.momentzInternal())
+    moment_y = numpy.array(internalForces.momentyInternal())
+    return numpy.column_stack((shear_x,shear_y,moment_x,moment_y,moment_z))
+
 
 
 #Create booms
 fuselage_booms,floor_booms = boom_creator(36,5)
 all_booms = numpy.append(fuselage_booms,floor_booms,axis=0)
+epsilon = 2
+epsilon2 = 2
 
-#Calculate idealized structure centroid
-centroid = beamProperties.centroidCalculation(all_booms)
 
-#Calculate idealized structure moments of inertia
-Ixx_booms,Iyy_booms,Ixy_booms = idealized_structure_moment_of_inertia(all_booms,centroid)
 
-#Calculate stresses in new idealized structure
-stresses = normal_stress_calculation(all_booms,Ixx_booms,Iyy_booms,1,100000)
 
-#Recalculate areas for booms
-fuselage_booms[:,0],floor_booms[:,0] = recalculateBoomAreaFromStresses(stresses,fuselage_booms,floor_booms)
 
-print divide_into_multicell(all_booms)
+#ITERATION
+while epsilon2>0.01 or epsilon>0.01:
+    #Calculate idealized structure centroid
+    centroid = beamProperties.centroidCalculation(all_booms)
 
-'''
+    #Calculate idealized structure moments of inertia
+    Ixx_booms,Iyy_booms,Ixy_booms = idealized_structure_moment_of_inertia(all_booms,centroid)
+
+    #Calculate stresses in new idealized structure
+    stresses = normal_stress_calculation(all_booms,Ixx_booms,Iyy_booms,Ixy_booms,70000000,20000000)
+
+    #Recalculate areas for booms
+    fuselage_booms[:,0],floor_booms[:,0] = recalculateBoomAreaFromStresses(stresses,fuselage_booms,floor_booms)
+
+    epsilon = numpy.mean(fuselage_booms[:,0]/all_booms[0:len(fuselage_booms),0])-1
+    epsilon2 = numpy.mean(floor_booms[:,0]/all_booms[-len(floor_booms):,0])-1
+
+    all_booms = numpy.append(fuselage_booms,floor_booms,axis=0)
+
+
 #FUSELAGE PLOTTER
 plt.scatter(fuselage_booms[:,1],fuselage_booms[:,2])
 plt.scatter(floor_booms[:,1],floor_booms[:,2])
+plt.show()
+
+cell1, cell2 = divide_into_multicell(all_booms)
+
+
+def J_calculator(booms,fuselage_thickness,floor_thickness):
+
+    #Getting booms for both fuselage and floor
+    booms_fuselage = booms[booms[:,2] != -parameters.R+parameters.hf]
+    booms_floor = booms[booms[:,2] == -parameters.R+parameters.hf]
+
+    #Initalizing Js
+    J_fuselage= 0
+    J_floor = 0
+
+    #Counting J for fuselage
+    for i in range(len(booms_fuselage)-1):
+        J_fuselage = J_fuselage + (fuselage_thickness**3)*numpy.sqrt((booms_fuselage[i,1]-booms_fuselage[i+1,1])**2 + (booms_fuselage[i,2]-booms_fuselage[i,2])**2 )
+
+    #Counting J for floor
+    for i in range(len(booms_floor)-1):
+        J_floor = J_floor + (floor_thickness**3)*numpy.sqrt((booms_floor[i,1]-booms_floor[i+1,1])**2 + (booms_floor[i,2]-booms_floor[i,2])**2 )
+
+    return J_fuselage+J_floor
+
+
+def low_area_calculator(f_booms):
+
+    #Getting area of triangle to calculate section area
+    A_triangle = -f_booms[-1][2]*f_booms[-1][1]
+
+    #Getting theta corresponding to the section that includes triangle and cell area
+    theta = 2*numpy.arcsin(f_booms[-1][1]/parameters.R)
+
+    #Getting cell area
+    A_section = theta/(2*numpy.pi)*(parameters.R**2*numpy.pi)-A_triangle
+
+    return A_section
+
+
+
+def constant_shear_flow_calculator(cell_I,cell_II,torque):
+
+    #Calculating Js for both cells
+    J_1 = J_calculator(cell_I,parameters.ts,parameters.tf)
+    J_2 = J_calculator(cell_II,parameters.ts,parameters.tf)
+
+    #Ratio of T1/T2 to solve for T1 and T1
+    ratio_T1_T2 = J_1/J_2
+    T2 = torque/(ratio_T1_T2+1)
+    T1 = torque - T2
+
+    #Getting an array with only floor booms
+    floor_booms = cell_I[cell_I[:,2]==-parameters.R+parameters.hf]
+
+    #Calculating areas of both sections
+    area_2 = low_area_calculator(floor_booms)
+    area_1 = (parameters.R**2)*numpy.pi - area_2
+
+    #Finding constant shear flows using T=2Aq
+    constant_shear1 = T1/(2*area_1)
+    constant_shear2 = T2/(2*area_2)
+
+    return constant_shear1,constant_shear2
+
+
+print constant_shear_flow_calculator(cell1,cell2,10)
+
+'''
+#FUSELAGE PLOTTER
+forces = create_force_matrix()
+
+#plot section
+plt.subplot(221)
+plt.title("Vy")
+plt.plot(numpy.arange(parameters.L),forces[:,1])
+
+plt.subplot(222)
+plt.title("Mx")
+plt.plot(numpy.arange(parameters.L),forces[:,2])
+
+plt.subplot(223)
+plt.title("Vx")
+plt.plot(numpy.arange(parameters.L),forces[:,0])
+
+plt.subplot(224)
+plt.title("My")
+plt.plot(numpy.arange(parameters.L),forces[:,3])
 
 plt.show()
-#FUSELAGE PLOTTER
-'''
 
 
-'''
+
+
 #TESTER FOR ALL QUANTITIES
 x_axis = []
 for i in range(len(stresses[:,0])):
@@ -159,19 +267,6 @@ plt.show()
 #TESTER FOR ALL QUANTITITES
 
 
-for i in range(10):
-    #print Ixx1,Iyy1
-    stresses = normal_stress_calculation(total_output,Ixx1,Iyy1,1,1)
-
-    new_area = recalculateBoomAreaFromStresses(stresses)
-
-    total_output[:,0] = new_area[:,0]
-    centroid = beamProperties.centroidCalculation(total_output)
-    Ixx1,Iyy1 = idealized_structure_moment_of_inertia(new_area,centroid)
-
-    #print centroid,Ixx1,Iyy1
-    print new_area[:,0][0],new_area[:,0][1],new_area[:,0][33]
-    plt.show()
 
 def calculate_shear_flows(booms,Sx,Sy,Ixx,Iyy):
     q_unit = []

@@ -111,12 +111,17 @@ def momentxInternal_alt(forces, locations):
     return momentx_val
 
 
-def momentzInternal():
+def momentyInternal():
     # Determines moment in z, but (currently) incomplete due to not having all reaction forces. Currently is a constant.
-    momentz = z_disc * 0.
-    momentz += parameters.M3 + parameters.Sx*parameters.R  # this is taken from equation 2.4; momentz = Mz,A - Mz,B
-    return momentz
+    momenty = z_disc * 0.
+    momenty += parameters.M3 + parameters.Sx*parameters.R  # this is taken from equation 2.4; momentz = Mz,A - Mz,B
+    return momenty
 
 
-sy = shearyInternal_alt(parameters.external_forces_y, parameters.external_locations_y)
+all_forces = {
+    'shearx': shearxInternal(),
+    'sheary': shearyInternal(),
+    'momentx': momentxInternal(),
+    'momenty': momentyInternal(),
+}
 pass

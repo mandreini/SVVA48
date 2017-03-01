@@ -27,8 +27,11 @@ q_alt = W / (L*2*R)  # q_alt is a 2-dimensional area distributed load
 Sy2 = W*(L/2 - Lf1) / Lf2
 Sy1 = W - Sy2
 M3 = Sx * dtailz
-Sx2 = 0
-Sx1 = 0  # Sx1, Sx2 are the x-component of the forces in the landing gear, need equations for this
+Sx2 = -1376410.256
+Sx1 = 766410.2564
+Mlg1 = 2299230.769
+Mlg2 = -4129230.769 + 6405000
+Mtail = -4575000
 
 Lf02 = L - Lf1 - Lf2  # distance between z=0 and rear landing gear
 Lf01 = L - Lf1  # distance between z=0 and front landing gear

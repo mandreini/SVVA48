@@ -112,30 +112,3 @@ s1 = normal_stress_calculation(total_output,1,1,200,200)
 a1 = recalculateBoomAreaFromStresses(s1)
 print idealized_structure_moment_of_inertia(a1)
 
-
-### change the while loop to this function to allow Matt to use it for model.py. must take Mx, My and give stresses and areas. everything else relevant is up to you!
-def boom_calculator(Mx, My, error0=(2,2)):
-    epsilon, epsilon2 = error0
-    fuselage_booms, floor_booms = boom_creator(36, 5)
-    all_booms = numpy.append(fuselage_booms, floor_booms, axis=0)
-    stresses = []
-
-    while epsilon2>0.01 or epsilon>0.01:
-        #Calculate idealized structure centroid
-        centroid = beamProperties.centroidCalculation(all_booms) # area equivalence centroid (no analysis on booms yet)
-
-        #Calculate idealized structure moments of inertia
-        Ixx_booms,Iyy_booms,Ixy_booms = idealized_structure_moment_of_inertia(all_booms,centroid)
-
-        #Calculate stresses in new idealized structure
-        stresses = normal_stress_calculation(all_booms,Ixx_booms,Iyy_booms,Ixy_booms,Mx, My)
-
-        #Recalculate areas for booms
-        fuselage_booms[:,0],floor_booms[:,0] = recalculateBoomAreaFromStresses(stresses,fuselage_booms,floor_booms) # desire result
-
-        epsilon = numpy.mean(fuselage_booms[:,0]/all_booms[0:len(fuselage_booms),0])-1
-        epsilon2 = numpy.mean(floor_booms[:,0]/all_booms[-len(floor_booms):,0])-1
-
-        all_booms = numpy.append(fuselage_booms,floor_booms,axis=0)
-
-    return stresses, all_booms

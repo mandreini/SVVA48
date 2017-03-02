@@ -63,7 +63,7 @@ def plot_circle(shear_flow, frame_no):
     plt.xlim([-4, 4])
     plt.ylim([-4, 4])
     plt.savefig('shear_for_frame%s.png' % frame_no)
-    plt.show()
+    # plt.show()
 
 def getQ(theta):
     # blach blach uses elliptoids.
